@@ -10,7 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -75,43 +78,28 @@ WSGI_APPLICATION = 'home.wsgi.application'
 # Database - Dynamic Configuration
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Dynamic database configuration - automatically detects MySQL availability
+# Base database configuration using existing dynamic manager, without sqlite fallbacks.
 try:
     from webapp.database_manager import db_manager
     DATABASES = db_manager.get_database_config()
 except ImportError:
-    # Fallback to SQLite if database manager is not available
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+    DATABASES = {}
 
-# Multi-database configuration for data synchronization
-DATABASES.update({
-    'sqlite_db': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    },
-    'mysql_db': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'pet_rescue_db',
-        'USER': 'root',
-        'PASSWORD': 'abhijit',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
-    }
-})
+# Prefer DATABASE_URL (set on Render) for the default connection when available.
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    DATABASES['default'] = dj_database_url.config(
+        default=database_url,
+        conn_max_age=600,
+        ssl_require=True,
+    )
 
-# Separate database for chat data
-DATABASES['chat_db'] = {
-    'ENGINE': 'django.db.backends.sqlite3',
-    'NAME': BASE_DIR / 'chat_db.sqlite3',
-}
+# Ensure a default DB exists; if not configured, raise clearly to avoid silent sqlite fallback.
+if 'default' not in DATABASES:
+    raise RuntimeError('DATABASE_URL is required for database configuration')
+
+# Route chat data to the same primary database (no sqlite usage).
+DATABASES['chat_db'] = DATABASES['default'].copy()
 
 # Route chat app models to chat_db
 DATABASE_ROUTERS = ['chat.db_routers.ChatRouter']
