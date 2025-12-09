@@ -88,11 +88,22 @@ except ImportError:
 # Prefer DATABASE_URL (set on Render) for the default connection when available.
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
-    DATABASES['default'] = dj_database_url.config(
+    db_cfg = dj_database_url.config(
         default=database_url,
         conn_max_age=600,
         ssl_require=True,
     )
+
+    # Clean unsupported connection args and enforce TLS in driver-supported form.
+    opts = db_cfg.get('OPTIONS', {})
+    ssl_mode = opts.pop('ssl-mode', None) or opts.pop('ssl_mode', None)
+    if ssl_mode:
+        opts['ssl'] = {'ssl-mode': ssl_mode}
+    else:
+        opts.setdefault('ssl', {'ssl-mode': 'REQUIRED'})
+    db_cfg['OPTIONS'] = opts
+
+    DATABASES['default'] = db_cfg
 
 # Ensure a default DB exists; if not configured, raise clearly to avoid silent sqlite fallback.
 if 'default' not in DATABASES:
