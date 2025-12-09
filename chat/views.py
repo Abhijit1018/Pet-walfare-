@@ -202,7 +202,10 @@ def start_conversation(request, pet_id):
     admin_ids = list(admin_qs.values_list('id', flat=True))
     admin_ids = [aid for aid in admin_ids if aid != request.user.id]
 
-    # Find existing conversation with exactly these two participants (owner + requester)
+    # We want conversations to be scoped to the specific pet so that starting a chat
+    # about a different pet (even with the same participants) creates a NEW
+    # conversation. To support that we only reuse an existing conversation if its
+    # subject includes the pet id tag `(pet:<id>)`.
     from django.db.models import Count
     convo_ids = (ChatMember.objects
                 .filter(user_id__in=[owner.id, request.user.id])
@@ -210,7 +213,9 @@ def start_conversation(request, pet_id):
                 .annotate(cnt=Count('user_id'))
                 .filter(cnt=2)
                 .values_list('conversation_id', flat=True))
-    convo = Conversation.objects.filter(id__in=list(convo_ids)).first()
+    # Look for a conversation among these ids that is explicitly about this pet
+    pet_tag = f'(pet:{pet.id})'
+    convo = Conversation.objects.filter(id__in=list(convo_ids), subject__contains=pet_tag).first()
     chat_db = 'chat_db'
     if convo:
         # ensure admins are members of existing conversation
@@ -219,7 +224,9 @@ def start_conversation(request, pet_id):
         return redirect('chat:conversation', convo_id=convo.id)
 
     # create new conversation and add owner, requester and admins
-    convo = Conversation.objects.using(chat_db).create(subject=f'About {pet.name}')
+    # create a conversation explicitly tagged with the pet id so it won't be
+    # reused for other pets with the same participants
+    convo = Conversation.objects.using(chat_db).create(subject=f'About {pet.name} {pet_tag}')
     # create chat members via get_or_create to avoid UNIQUE constraint failures
     ChatMember.objects.using(chat_db).get_or_create(conversation_id=convo.id, user_id=owner.id)
     ChatMember.objects.using(chat_db).get_or_create(conversation_id=convo.id, user_id=request.user.id)

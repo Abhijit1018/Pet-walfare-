@@ -92,18 +92,11 @@ def admin_start_chat(request, user_id):
     # Build participant list: target user + admins
     participant_ids = sorted(set([target.id] + admin_ids))
 
-    # Try to find an existing conversation that contains exactly these participants
-    convo_ids = (ChatMember.objects
-                .filter(user_id__in=participant_ids)
-                .values('conversation_id')
-                .annotate(cnt=Count('user_id'))
-                .filter(cnt=len(participant_ids))
-                .values_list('conversation_id', flat=True))
-    convo = Conversation.objects.filter(id__in=list(convo_ids)).first()
-
+    # Always create a fresh admin conversation so admins can start a new DM
+    # with the user even if previous admin chats exist.
     chat_db = 'chat_db'
-    if not convo:
-        convo = Conversation.objects.using(chat_db).create(subject=f'Admin chat with {target.username}')
+    # include a timestamp suffix so subject is unique and easy to search
+    convo = Conversation.objects.using(chat_db).create(subject=f'Admin chat with {target.username} - {timezone.now().isoformat()}')
 
     # Ensure ChatMember rows exist for all participants (use get_or_create to avoid UNIQUE errors)
     for uid in participant_ids:
