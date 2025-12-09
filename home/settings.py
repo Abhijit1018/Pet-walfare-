@@ -78,12 +78,8 @@ WSGI_APPLICATION = 'home.wsgi.application'
 # Database - Dynamic Configuration
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Base database configuration using existing dynamic manager, without sqlite fallbacks.
-try:
-    from webapp.database_manager import db_manager
-    DATABASES = db_manager.get_database_config()
-except ImportError:
-    DATABASES = {}
+# Base database configuration: rely solely on DATABASE_URL in deployed environments.
+DATABASES = {}
 
 # Prefer DATABASE_URL (set on Render) for the default connection when available.
 database_url = os.environ.get('DATABASE_URL')
