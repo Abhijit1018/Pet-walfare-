@@ -13,3 +13,4 @@ typing_extensions==4.15.0
 tzdata==2025.2
 gunicorn
 cryptography
+whitenoise==6.7.0
