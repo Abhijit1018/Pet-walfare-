@@ -94,13 +94,11 @@ if database_url:
         ssl_require=True,
     )
 
-    # Clean unsupported connection args and enforce TLS in driver-supported form.
+    # Clean unsupported sslmode/ssl-mode and rely on driver-supported ssl dict.
     opts = db_cfg.get('OPTIONS', {})
-    ssl_mode = opts.pop('ssl-mode', None) or opts.pop('ssl_mode', None)
-    if ssl_mode:
-        opts['ssl'] = {'ssl-mode': ssl_mode}
-    else:
-        opts.setdefault('ssl', {'ssl-mode': 'REQUIRED'})
+    opts.pop('sslmode', None)
+    opts.pop('ssl-mode', None)
+    opts.setdefault('ssl', {})  # mysqlclient accepts a dict here; empty uses system CA
     db_cfg['OPTIONS'] = opts
 
     DATABASES['default'] = db_cfg
