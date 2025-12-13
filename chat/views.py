@@ -61,15 +61,24 @@ def delete_conversation(request, convo_id):
 
 @login_required
 def chat_index(request):
-    # List conversations for the user using the through table to avoid cross-db joins
-    # Use ChatParticipant (integer user ids) instead of M2M through table
-    convo_ids = list(ChatMember.objects.filter(user_id=request.user.id).values_list('conversation_id', flat=True))
-    convos = list(Conversation.objects.filter(id__in=convo_ids))
+    # Ensure we always query the chat database alias explicitly
+    chat_db = 'chat_db'
+    # List conversations for the user using the ChatMember table (no cross-db joins)
+    convo_ids = list(
+        ChatMember.objects.using(chat_db)
+        .filter(user_id=request.user.id)
+        .values_list('conversation_id', flat=True)
+    )
+    convos = list(Conversation.objects.using(chat_db).filter(id__in=convo_ids))
     # collect participant ids for all conversations and load users from main DB
     convo_map = {c.id: c for c in convos}
     if convos:
         all_convo_ids = [c.id for c in convos]
-        rows = ChatMember.objects.filter(conversation_id__in=all_convo_ids).values('conversation_id', 'user_id')
+        rows = (
+            ChatMember.objects.using(chat_db)
+            .filter(conversation_id__in=all_convo_ids)
+            .values('conversation_id', 'user_id')
+        )
         convo_participants = {}
         user_ids = set()
         for r in rows:
@@ -88,8 +97,9 @@ def chat_index(request):
 @login_required
 def conversation_view(request, convo_id):
     # Load conversation and ensure the current user is a participant (use through table to avoid cross-db joins)
-    convo = get_object_or_404(Conversation, id=convo_id)
-    if not ChatMember.objects.filter(conversation_id=convo.id, user_id=request.user.id).exists():
+    chat_db = 'chat_db'
+    convo = get_object_or_404(Conversation.objects.using(chat_db), id=convo_id)
+    if not ChatMember.objects.using(chat_db).filter(conversation_id=convo.id, user_id=request.user.id).exists():
         from django.http import Http404
         raise Http404()
     if request.method == 'POST':
@@ -124,7 +134,8 @@ def conversation_view(request, convo_id):
             return redirect('chat:conversation', convo_id=convo.id)
     # Load messages without select_related to avoid cross-db joins; then load senders from auth DB
     # use related_name 'chat_messages' for Message relation
-    msgs = list(convo.chat_messages.all())
+    # Load messages directly from the chat database alias
+    msgs = list(Message.objects.using(chat_db).filter(conversation_id=convo.id))
     sender_ids = {m.sender_id for m in msgs}
     from django.contrib.auth import get_user_model
     UserModel = get_user_model()
@@ -134,7 +145,7 @@ def conversation_view(request, convo_id):
         setattr(m, 'sender_user', senders_map.get(m.sender_id))
 
     # attach conversation participants safely
-    rows = ChatMember.objects.filter(conversation_id=convo.id).values_list('user_id', flat=True)
+    rows = ChatMember.objects.using(chat_db).filter(conversation_id=convo.id).values_list('user_id', flat=True)
     if rows:
         users = UserModel.objects.filter(id__in=list(rows))
         users_map = {u.id: u for u in users}
