@@ -106,24 +106,23 @@ if database_url:
 if 'default' not in DATABASES:
     raise RuntimeError('DATABASE_URL is required for database configuration')
 
-# Separate chat database (Aiven chat_database)
+# Separate chat database (Aiven chat_database) - REQUIRED
 chat_db_url = os.environ.get('CHAT_DATABASE_URL')
-if chat_db_url:
-    chat_cfg = dj_database_url.config(
-        default=chat_db_url,
-        conn_max_age=600,
-        ssl_require=True,
-    )
-    # Clean unsupported sslmode/ssl-mode
-    chat_opts = chat_cfg.get('OPTIONS', {})
-    chat_opts.pop('sslmode', None)
-    chat_opts.pop('ssl-mode', None)
-    chat_opts.setdefault('ssl', {})
-    chat_cfg['OPTIONS'] = chat_opts
-    DATABASES['chat_db'] = chat_cfg
-else:
-    # Fallback to using the default database for chat if CHAT_DATABASE_URL not set
-    DATABASES['chat_db'] = DATABASES['default'].copy()
+if not chat_db_url:
+    raise RuntimeError('CHAT_DATABASE_URL is required for chat database configuration')
+
+chat_cfg = dj_database_url.config(
+    default=chat_db_url,
+    conn_max_age=600,
+    ssl_require=True,
+)
+# Clean unsupported sslmode/ssl-mode
+chat_opts = chat_cfg.get('OPTIONS', {})
+chat_opts.pop('sslmode', None)
+chat_opts.pop('ssl-mode', None)
+chat_opts.setdefault('ssl', {})
+chat_cfg['OPTIONS'] = chat_opts
+DATABASES['chat_db'] = chat_cfg
 
 # Route chat app models to chat_db
 DATABASE_ROUTERS = ['chat.db_routers.ChatRouter']
