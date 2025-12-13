@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+from cloudinary.models import CloudinaryField
 
 class UserProfile(models.Model):
     GENDER_CHOICES = [
@@ -67,7 +68,7 @@ class Pet(models.Model):
     contact_email = models.EmailField(blank=True, null=True)
     contact_phone = models.CharField(max_length=15, blank=True, null=True)
     owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    image = models.ImageField(upload_to='pet_images/', blank=True, null=True)
+    image = CloudinaryField('image', blank=True, null=True)
     date_added = models.DateTimeField(auto_now_add=True)
     found_date = models.DateTimeField(null=True, blank=True, help_text="Date when the pet was found")
     
@@ -130,7 +131,7 @@ class PetRegistrationRequest(models.Model):
     description = models.TextField(blank=True, null=True)
     contact_email = models.EmailField(blank=True, null=True)
     contact_phone = models.CharField(max_length=15, blank=True, null=True)
-    image = models.ImageField(upload_to='pet_registration_images/', blank=True, null=True)
+    image = CloudinaryField('image', blank=True, null=True)
     
     # Request management fields
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
